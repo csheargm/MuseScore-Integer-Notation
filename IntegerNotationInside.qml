@@ -371,7 +371,10 @@ MuseScore {
         return offsetToClass[(keySig + 12)%12];
     }
 
-    function keySigToNames(keySig) {
+    function keySigToNoteNames(keySig) {
+        // positive: sharp
+        // negative: flat
+        // [major, minor]
         const mapping = {
             "0": ["C", "A"],
             "1": ["G", "E"],
@@ -392,6 +395,11 @@ MuseScore {
         return mapping[keySig.toString()]
     }
 
+    function noteNumToNoteName(n) {
+        const noteNames = ["C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B"];
+        return noteNames[(n+1200) % 12];
+    }
+
     function getKeySigText() {
         var c = curScore.newCursor();
         // c.inputStateMode = Cursor.INPUT_STATE_SYNC_WITH_SCORE;
@@ -401,7 +409,7 @@ MuseScore {
             return prefix + "{{unknown}}";
         }
         var pitchClass = keySigToPitchClass(keySigOffset);
-        var noteNames = keySigToNames(keySigOffset);
+        var noteNames = keySigToNoteNames(keySigOffset);
 
         var keySigText = `${noteNames[0]} Maj / ${noteNames[1]} min`;
         if (keySigOffset != 0) {
@@ -606,22 +614,30 @@ MuseScore {
     function createRefNoteSigText(initialKeySig, currKeySig) {
         let pc1 = keySigToPitchClass(initialKeySig)
         let pc2 = keySigToPitchClass(currKeySig)
-        const keyNames = keySigToNames(currKeySig)
-        let offset =  inputFollowKeyChange.checked ? (pc2 + 12 - pc1) % 12 : 0
-        if (offset > 6) {
-            offset -= 12
+        let keyChangeOffset =  inputFollowKeyChange.checked ? (pc2 + 12 - pc1) % 12 : 0
+        if (keyChangeOffset > 6) {
+            keyChangeOffset -= 12
         }
-        let newRefNote = inputReferenceNote.value + offset
+        let newRefNote = inputReferenceNote.value + keyChangeOffset
+        let [keyNameMajor, keyNameMinor] = ["", ""]
+        if (newRefNote % 12 === pc1) {
+            [keyNameMajor, keyNameMinor] = keySigToNoteNames(initialKeySig);
+        } else if (newRefNote % 12 === pc2) {
+            [keyNameMajor, keyNameMinor] = keySigToNoteNames(currKeySig);
+        } else {
+            keyNameMajor = noteNumToNoteName(newRefNote);
+            keyNameMinor = noteNumToNoteName(newRefNote - 3);
+        }
+        let keyName = keyNameMajor
         let prefix = ""
-        let keyName = keyNames[0]
         let octave = ""
         let suffix = ""
         if (inputRefSigFormat.currentIndex == 0)  {
-            prefix= inputNotationFormat.currentIndex == 0 ? "0=" : "1="
+            prefix += inputNotationFormat.currentIndex == 0 ? "0=" : "1="
             // major key
         } else if (inputRefSigFormat.currentIndex == 1) {
-            prefix= inputNotationFormat.currentIndex == 0 ? "9=" : "6="
-            keyName = keyNames[1]
+            prefix += inputNotationFormat.currentIndex == 0 ? "9=" : "6=";
+            keyName = keyNameMinor;
             // minor key
             newRefNote += 9
         }
