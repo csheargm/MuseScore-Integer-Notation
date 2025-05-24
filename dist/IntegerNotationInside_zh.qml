@@ -22,7 +22,7 @@ import MuseScore 3.0
 
 
 MuseScore {
-    version: "0.7.0"
+    version: "0.7.1"
     title: qsTr("整数记谱法")
     menuPath: "Plugins." + qsTr("整数记谱法")
     description: qsTr("将符头替换为整数记法或简谱记法")
@@ -343,7 +343,7 @@ MuseScore {
                 Layout.preferredWidth: 80
                 text: "取消"
                 onClicked: {
-                    quit();
+                    quit()
                 }
             }
             Button {
@@ -351,10 +351,10 @@ MuseScore {
                 Layout.preferredWidth: 80
                 text: "确定"
                 onClicked: {
-                    curScore.startCmd();
-                    main();
-                    curScore.endCmd();
-                    quit();
+                    curScore.startCmd()
+                    main()
+                    curScore.endCmd()
+                    quit()
                 }
                 highlighted: true
             }
@@ -363,15 +363,18 @@ MuseScore {
 
     onRun: {
         if (typeof curScore === 'undefined')
-            quit();
+            quit()
     }
 
     function keySigToPitchClass(keySig) {
-        const offsetToClass = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
-        return offsetToClass[(keySig + 12)%12];
+        const offsetToClass = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5]
+        return offsetToClass[(keySig + 12)%12]
     }
 
-    function keySigToNames(keySig) {
+    function keySigToNoteNames(keySig) {
+        // positive: sharp
+        // negative: flat
+        // [major, minor]
         const mapping = {
             "0": ["C", "A"],
             "1": ["G", "E"],
@@ -392,44 +395,49 @@ MuseScore {
         return mapping[keySig.toString()]
     }
 
-    function getKeySigText() {
-        var c = curScore.newCursor();
-        // c.inputStateMode = Cursor.INPUT_STATE_SYNC_WITH_SCORE;
-        var keySigOffset = c.keySignature;
-        var prefix = "  初始调号 ";
-        if (isNaN(keySigOffset)) {
-            return prefix + "未知";
-        }
-        var pitchClass = keySigToPitchClass(keySigOffset);
-        var noteNames = keySigToNames(keySigOffset);
+    function noteNumToNoteName(n) {
+        const noteNames = ["C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B"]
+        return noteNames[(n+1200) % 12]
+    }
 
-        var keySigText = `${noteNames[0]} Maj / ${noteNames[1]} min`;
+    function getKeySigText() {
+        var c = curScore.newCursor()
+        // c.inputStateMode = Cursor.INPUT_STATE_SYNC_WITH_SCORE
+        var keySigOffset = c.keySignature
+        var prefix = "  初始调号 "
+        if (isNaN(keySigOffset)) {
+            return prefix + "未知"
+        }
+        var pitchClass = keySigToPitchClass(keySigOffset)
+        var noteNames = keySigToNoteNames(keySigOffset)
+
+        var keySigText = `${noteNames[0]} Maj / ${noteNames[1]} min`
         if (keySigOffset != 0) {
-            const symbol = keySigOffset > 0 ? "#" : "b";
-            // const symbol = keySigOffset > 0 ? "♯" : "♭";
+            const symbol = keySigOffset > 0 ? "#" : "b"
+            // const symbol = keySigOffset > 0 ? "♯" : "♭"
             keySigText = `(${symbol}×${Math.abs(keySigOffset)}) ${keySigText}`
         }
 
-        var refNote = pitchClass + 60;
+        var refNote = pitchClass + 60
         if (refNote >= 67) {
-            refNote -= 12;
+            refNote -= 12
         }
-        var oct = Math.floor(refNote / 12) - 1;
+        var oct = Math.floor(refNote / 12) - 1
         // special case for Cb (C4=60, Cb4=59, B3=59)
         if (noteNames[0] == "Cb") {
-            oct += 1;
+            oct += 1
         }
-        inputReferenceNote.value = refNote;
-        return `${prefix}${keySigText}, ${noteNames[0]}${oct}=${refNote}`;
+        inputReferenceNote.value = refNote
+        return `${prefix}${keySigText}, ${noteNames[0]}${oct}=${refNote}`
     }
 
     function formatText(textEl, isGrace) {
         if (inputStyleGroup.currentIndex == 0) {
             // as of MS 4.4, 59 = User-7, 64 = User-12
             textEl.subStyle = 64
-            textEl.autoplace = false;
+            textEl.autoplace = false
             // automatically place the text to prevent overlapping with other elements
-            textEl.align = Align.RIGHT + Align.VCENTER;
+            textEl.align = Align.RIGHT + Align.VCENTER
             // text alignment horizontally and vertically
             textEl.fontFace = inputFontFace.text
             textEl.fontSize = parseFloat(inputFontSize.text)
@@ -437,11 +445,11 @@ MuseScore {
             textEl.offsetX = parseFloat(inputXOffset.text)
             textEl.offsetY = 0
             if (inputReposition.currentIndex != 0) {
-                textEl.align = Align.RIGHT + Align.BASELINE;
+                textEl.align = Align.RIGHT + Align.BASELINE
                 textEl.offsetY = 0.5
             }
         } else {
-            textEl.subStyle = inputStyleGroup.valueAt(inputStyleGroup.currentIndex) + 4;
+            textEl.subStyle = inputStyleGroup.valueAt(inputStyleGroup.currentIndex) + 4
         }
         if (isGrace) {
             textEl.fontSize = textEl.fontSize - 2
@@ -450,40 +458,40 @@ MuseScore {
 
     function rgbToHex(rgb) {
         // Convert each component to hexadecimal and concatenate them
-        return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
+        return "#" + ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1)
     }
 
     function main() {
-        var cursor = curScore.newCursor();
-        var startStaff;
-        var endStaff;
-        var endTick;
-        var fullScore = false;
+        var cursor = curScore.newCursor()
+        var startStaff
+        var endStaff
+        var endTick
+        var fullScore = false
 
         cursor.rewind(1);  // rewind to start of selection
         if (!cursor.segment) {
             // no selection
-            fullScore = true;
+            fullScore = true
             startStaff = 0; // start with 1st staff
             endStaff = curScore.nstaves - 1; // and end with last
         } else {
-            startStaff = cursor.staffIdx;
+            startStaff = cursor.staffIdx
             cursor.rewind(2); // rewind to end of selection
             if (cursor.tick == 0) {
-                endTick = curScore.lastSegment.tick + 1;
+                endTick = curScore.lastSegment.tick + 1
             } else {
-                endTick = cursor.tick;
+                endTick = cursor.tick
             }
-            endStaff = cursor.staffIdx;
+            endStaff = cursor.staffIdx
         }
-        let initialKeySig = cursor.keySignature;
-        let prevKeySig;
-        let currKeySig;
+        let initialKeySig = cursor.keySignature
+        let prevKeySig
+        let currKeySig
         for (let staff = startStaff; staff <= endStaff; staff++) {
             for (let voice = 0; voice < 4; voice++) {
-                cursor.rewind(1);
-                cursor.voice = voice;
-                cursor.staffIdx = staff;
+                cursor.rewind(1)
+                cursor.voice = voice
+                cursor.staffIdx = staff
                 if (fullScore)  // no selection
                     cursor.rewind(0); // beginning of score
 
@@ -496,7 +504,7 @@ MuseScore {
                             if (inputRefSigFormat.currentIndex !== 2 && voice === 0 && staff === 0) {
                                 // add key signature text
                                 if (inputFollowKeyChange.checked || prevKeySig === undefined) {
-                                    cursor.add(createRefNoteSigText(initialKeySig, currKeySig));
+                                    cursor.add(createRefNoteSigText(initialKeySig, currKeySig))
                                 }
                             }
                             prevKeySig = currKeySig
@@ -516,7 +524,7 @@ MuseScore {
                         }
                         transformNotes(cursor.element.notes, false, initialKeySig, currKeySig)
                     }
-                    cursor.next();
+                    cursor.next()
                 } // end while
             } // end for voice
         } // end for staff
@@ -529,8 +537,8 @@ MuseScore {
         const invisibleColor = inputColor.text
         for (let i = 0; i < notes.length; i++) {
             let note = notes[i]
-            let textEl = createTextElement(note, initialKeySig, currentKeySig);
-            formatText(textEl, isGrace);
+            let textEl = createTextElement(note, initialKeySig, currentKeySig)
+            formatText(textEl, isGrace)
             if (note.durationType.type == 3) {
                 // half note
                 // textEl.frameType = 2 // circle
@@ -540,7 +548,7 @@ MuseScore {
             if (!note.visible) {
                 textEl.visible = false
             }
-            note.add(textEl);
+            note.add(textEl)
             if (inputHideMethod.currentIndex == 0) {
                 // color
                 note.color = invisibleColor
@@ -591,50 +599,58 @@ MuseScore {
     }
 
     function getNoteText(pitchClass) {
-        let formats = [];
-        formats.push(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]);
-        formats.push(["1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7"]);
-        formats.push(["1", "#1", "2", "#2", "3", "4", "#4", "5", "#5", "6", "#6", "7"]);
+        let formats = []
+        formats.push(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"])
+        formats.push(["1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7"])
+        formats.push(["1", "#1", "2", "#2", "3", "4", "#4", "5", "#5", "6", "#6", "7"])
         let notation = formats[inputNotationFormat.currentIndex]
         var noteText = notation[pitchClass]
         if ("#b".includes(noteText[0])) {
-            noteText = "<sup>" + noteText[0] + "</sup>" + noteText[1];
+            noteText = "<sup>" + noteText[0] + "</sup>" + noteText[1]
         }
-        return noteText;
+        return noteText
     }
 
     function createRefNoteSigText(initialKeySig, currKeySig) {
         let pc1 = keySigToPitchClass(initialKeySig)
         let pc2 = keySigToPitchClass(currKeySig)
-        const keyNames = keySigToNames(currKeySig)
-        let offset =  inputFollowKeyChange.checked ? (pc2 + 12 - pc1) % 12 : 0
-        if (offset > 6) {
-            offset -= 12
+        let keyChangeOffset =  inputFollowKeyChange.checked ? (pc2 + 12 - pc1) % 12 : 0
+        if (keyChangeOffset > 6) {
+            keyChangeOffset -= 12
         }
-        let newRefNote = inputReferenceNote.value + offset
+        let newRefNote = inputReferenceNote.value + keyChangeOffset
+        let [keyNameMajor, keyNameMinor] = ["", ""]
+        if (newRefNote % 12 === pc1) {
+            [keyNameMajor, keyNameMinor] = keySigToNoteNames(initialKeySig)
+        } else if (newRefNote % 12 === pc2) {
+            [keyNameMajor, keyNameMinor] = keySigToNoteNames(currKeySig)
+        } else {
+            keyNameMajor = noteNumToNoteName(newRefNote)
+            keyNameMinor = noteNumToNoteName(newRefNote - 3)
+        }
+        let keyName = keyNameMajor
         let prefix = ""
-        let keyName = keyNames[0]
         let octave = ""
         let suffix = ""
         if (inputRefSigFormat.currentIndex == 0)  {
-            prefix= inputNotationFormat.currentIndex == 0 ? "0=" : "1="
+            prefix += inputNotationFormat.currentIndex == 0 ? "0=" : "1="
             // major key
         } else if (inputRefSigFormat.currentIndex == 1) {
-            prefix= inputNotationFormat.currentIndex == 0 ? "9=" : "6="
-            keyName = keyNames[1]
+            prefix += inputNotationFormat.currentIndex == 0 ? "9=" : "6="
+            keyName = keyNameMinor
             // minor key
             newRefNote += 9
         }
         if (inputOctaveDots.checked) {
-            octave = Math.floor(newRefNote / 12) - 1;
+            octave = Math.floor(newRefNote / 12) - 1
             if (keyName == "Cb") {
-                octave += 1;
+                octave += 1
             }
             suffix = ` (${newRefNote})`
         }
         let el = newElement(Element.STAFF_TEXT)
         el.text = `${prefix}${keyName}${octave}${suffix}`
-        return el;
+        return el
     }
 
     function createTextElement(note, initialKeySig, currKeySig) {
@@ -648,16 +664,16 @@ MuseScore {
 
         let el = newElement(Element.FINGERING)
 
-        let relPitchClass = (note.pitch - refNote + 1200) % 12;
-        let relativeOctave = Math.floor((note.pitch - refNote) / 12);
-        let dot = "•";
-        let text = "";
+        let relPitchClass = (note.pitch - refNote + 1200) % 12
+        let relativeOctave = Math.floor((note.pitch - refNote) / 12)
+        let dot = "•"
+        let text = ""
         if (relativeOctave > 0 && inputOctaveDots.checked)
-            text += "<sup>" + dot.repeat(relativeOctave) + "</sup>";
+            text += "<sup>" + dot.repeat(relativeOctave) + "</sup>"
         if (relativeOctave < 0 && inputOctaveDots.checked)
-            text += "<sub>" + dot.repeat(-relativeOctave) + "</sub>";
+            text += "<sub>" + dot.repeat(-relativeOctave) + "</sub>"
         text += getNoteText(relPitchClass)
         el.text = text
-        return el;
+        return el
     } // end for note
 } // end MuseScore
