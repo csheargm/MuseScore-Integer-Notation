@@ -22,7 +22,7 @@ import MuseScore 3.0
 
 
 MuseScore {
-    version: "0.7.1"
+    version: "0.8.0"
     title: qsTr("{{ plugin_title }}")
     menuPath: "Plugins." + qsTr("{{ menu_path }}")
     description: qsTr("{{ plugin_description }}")

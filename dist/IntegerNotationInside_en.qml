@@ -22,7 +22,7 @@ import MuseScore 3.0
 
 
 MuseScore {
-    version: "0.7.1"
+    version: "0.8.0"
     title: qsTr("Integer Notation")
     menuPath: "Plugins." + qsTr("Integer Notation")
     description: qsTr("Replace noteheads with Integer Notation or Numbered Notation")
@@ -351,10 +351,12 @@ MuseScore {
                 Layout.preferredWidth: 80
                 text: "OK"
                 onClicked: {
+                    // quit first, otherwise cmd() won't work
+                    // https://musescore.org/en/node/372762
+                    quit()
                     curScore.startCmd()
                     main()
                     curScore.endCmd()
-                    quit()
                 }
                 highlighted: true
             }
@@ -401,9 +403,14 @@ MuseScore {
     }
 
     function getKeySigText() {
-        var c = curScore.newCursor()
-        // c.inputStateMode = Cursor.INPUT_STATE_SYNC_WITH_SCORE
-        var keySigOffset = c.keySignature
+        var cursor = curScore.newCursor()
+        if (curScore.selection.elements.length) {
+            cursor.rewind(Cursor.SELECTION_START)
+        } else {
+            cursor.rewind(Cursor.SCORE_START)
+        }
+        // rewind prevents crash on 4.6
+        var keySigOffset = cursor.keySignature
         var prefix = "  Initial key "
         if (isNaN(keySigOffset)) {
             return prefix + "unknown"
@@ -462,40 +469,30 @@ MuseScore {
     }
 
     function main() {
-        var cursor = curScore.newCursor()
-        var startStaff
-        var endStaff
-        var endTick
-        var fullScore = false
-
-        cursor.rewind(1);  // rewind to start of selection
-        if (!cursor.segment) {
-            // no selection
-            fullScore = true
-            startStaff = 0; // start with 1st staff
-            endStaff = curScore.nstaves - 1; // and end with last
-        } else {
-            startStaff = cursor.staffIdx
-            cursor.rewind(2); // rewind to end of selection
-            if (cursor.tick == 0) {
-                endTick = curScore.lastSegment.tick + 1
-            } else {
-                endTick = cursor.tick
-            }
-            endStaff = cursor.staffIdx
+        let fullScore = !curScore.selection.elements.length
+        if (fullScore) {
+            cmd("select-all")
         }
+        let cursor = curScore.newCursor()
+        cursor.rewind(Cursor.SELECTION_START)
+        let startStaff = cursor.staffIdx
+        cursor.rewind(Cursor.SELECTION_END)
+        let endStaff = cursor.staffIdx
+        let endTick = cursor.tick == 0 ? curScore.lastSegment.tick + 1 : cursor.tick
+
+        cursor.rewind(Cursor.SELECTION_START)
         let initialKeySig = cursor.keySignature
         let prevKeySig
         let currKeySig
+        let log = ""
+
         for (let staff = startStaff; staff <= endStaff; staff++) {
             for (let voice = 0; voice < 4; voice++) {
-                cursor.rewind(1)
+                cursor.rewind(Cursor.SELECTION_START)
                 cursor.voice = voice
                 cursor.staffIdx = staff
-                if (fullScore)  // no selection
-                    cursor.rewind(0); // beginning of score
 
-                while (cursor.segment && (fullScore || cursor.tick < endTick)) {
+                while (cursor.segment && cursor.tick < endTick) {
                     if (cursor.element
                     && (cursor.element.type == Element.CHORD
                     || cursor.element.type == Element.REST)) {
@@ -519,28 +516,39 @@ MuseScore {
                         // see https://musescore.org/en/node/310685
                         
                         let graceChords = cursor.element.graceNotes
-                        for (var i = 0; i < graceChords.length; i++) {
-                            transformNotes(graceChords[i].notes, true, initialKeySig, currKeySig)
+                        for (let i = 0; i < graceChords.length; i++) {
+                            transformNotes(graceChords[i], true, initialKeySig, currKeySig)
                         }
-                        transformNotes(cursor.element.notes, false, initialKeySig, currKeySig)
-                    }
+                        transformNotes(cursor.element, false, initialKeySig, currKeySig)
+                    }   
                     cursor.next()
                 } // end while
             } // end for voice
         } // end for staff
+        if (log) {
+            const el = newElement(Element.SYSTEM_TEXT)
+            el.text = log
+            cursor.rewind(Cursor.SELECTION_START)
+            cursor.add(el)
+        }
+        if (fullScore) {
+            cmd("escape")
+        }
     } // end function
 
-    function transformNotes(notes, isGrace, initialKeySig, currentKeySig) {
+    function transformNotes(chord, isGrace, initialKeySig, currentKeySig) {
         // const invisibleColor = rgbToHex([240,240,240]) // f0f0f0
         // const invisibleColor = "#f3f3f3"
         // const invisibleColor = "#f9f9f9" // 249, page background color
+        const notes = chord.notes
         const invisibleColor = inputColor.text
         for (let i = 0; i < notes.length; i++) {
             let note = notes[i]
             let textEl = createTextElement(note, initialKeySig, currentKeySig)
             formatText(textEl, isGrace)
-            if (note.durationType.type == 3) {
-                // half note
+            if (["1/2","3/4","7/8","15/16","31/32"].includes(chord.duration.str)) {
+                // don't know how to get notehead type, so infer from duration
+                // half note with 0,1,2,3,4 dots
                 // textEl.frameType = 2 // circle
                 // textEl.framePadding = 0.1
                 textEl.fontStyle = 2 // italic
@@ -604,7 +612,7 @@ MuseScore {
         formats.push(["1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7"])
         formats.push(["1", "#1", "2", "#2", "3", "4", "#4", "5", "#5", "6", "#6", "7"])
         let notation = formats[inputNotationFormat.currentIndex]
-        var noteText = notation[pitchClass]
+        let noteText = notation[pitchClass]
         if ("#b".includes(noteText[0])) {
             noteText = "<sup>" + noteText[0] + "</sup>" + noteText[1]
         }
